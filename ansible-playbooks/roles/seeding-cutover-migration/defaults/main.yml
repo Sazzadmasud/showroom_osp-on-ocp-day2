@@ -26,6 +26,9 @@ cbt_vm_datastore: "workload_share_QHFNI"
 # Leave empty to inherit template network (same as govc vm.clone). Set to attach clone to a specific portgroup.
 cbt_vm_network: ""
 cbt_vm_template: database-{{ guid | default('changeme') }}
+# govc binary path and vCenter URL for VM rename (avoids vSphere Automation SDK dependency)
+cbt_vm_govc_bin: "{{ lookup('env', 'HOME') }}/govc"
+cbt_vm_govc_url: "{{ vcenter_govc_url | default('https://' + vcenter_hostname) }}"
 # Destination folder: use cbt_vm_folder_path when set (full path), else cbt_vm_folder (name or path)
 # Pre-existing folder full path. When set, overrides cbt_vm_folder. Example: /RS00/vm/Workloads/ocpvirt-r6prp
 cbt_vm_folder_path: "/RS00/vm/Workloads/ocpvirt-{{ guid }}"
