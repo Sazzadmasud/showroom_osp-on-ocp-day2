@@ -38,6 +38,18 @@
     - satellite_org | default('') | length > 0
     - rhc_activation_keys | length > 0
 
+- name: Build Satellite rhc_server JSON for subscription-manager Secret
+  ansible.builtin.set_fact:
+    rhc_server_json: "{{ {'hostname': satellite_url, 'port': 443, 'insecure': satellite_insecure | bool} | to_json }}"
+  when: satellite_url | default('') | length > 0
+
+- name: Remove legacy Satellite vars block from data plane node set manifest
+  ansible.builtin.blockinfile:
+    path: "{{ ansible_env.HOME }}/{{ files_directory }}/osp-ng-dataplane-node-set-deploy.yaml"
+    marker: "# {mark} ANSIBLE MANAGED SATELLITE VARS"
+    state: absent
+  when: satellite_url | default('') | length > 0
+
 - name: Create subscription manager secret for Satellite
   kubernetes.core.k8s:
     state: present
@@ -51,22 +63,10 @@
       stringData:
         rhc_auth: "{{ rhc_auth_json }}"
         rhc_organization: "{{ rhc_organization_quoted }}"
+        rhc_server: "{{ rhc_server_json }}"
+        rhc_baseurl: "https://{{ satellite_url }}/pulp/repos"
+        rhc_insights: '{"state": "absent"}'
   when:
     - satellite_url | default('') | length > 0
     - rhc_activation_keys | length > 0
     - satellite_org | default('') | length > 0
-
-- name: Add Satellite registration vars to data plane node set manifest
-  ansible.builtin.blockinfile:
-    path: "{{ ansible_env.HOME }}/{{ files_directory }}/osp-ng-dataplane-node-set-deploy.yaml"
-    marker: "# {mark} ANSIBLE MANAGED SATELLITE VARS"
-    insertbefore: "^         rhc_release:"
-    block: |2
-         rhc_server:
-           hostname: {{ satellite_url }}
-           port: 443
-           insecure: {{ satellite_insecure | bool | lower }}
-         rhc_baseurl: https://{{ satellite_url }}/pulp/repos
-         rhc_insights:
-           state: absent
-  when: satellite_url | default('') | length > 0
