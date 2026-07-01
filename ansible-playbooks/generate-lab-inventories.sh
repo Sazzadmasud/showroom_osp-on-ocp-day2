@@ -275,9 +275,15 @@ all:
     registry_username: ""  # Add your Red Hat registry service account username
     registry_password: ""  # Add your Red Hat registry service account password/token
     
-    # Subscription Manager credentials (required)
+    # Subscription — Customer Portal OR Satellite (mutually exclusive)
     rhc_username: ""  # Add your Red Hat Customer Portal username
     rhc_password: ""  # Add your Red Hat Customer Portal password
+
+    # Satellite registration (RHDP labs / demosat — Satellite mode only)
+    satellite_url: ""
+    satellite_org: ""
+    ocp4_workload_rhoso_deployment_rhc_activation_key: ""
+    satellite_insecure: false
     
     # Internal lab hostnames (accessed from bastion)
     nfs_server_hostname: "nfsserver"  # Internal hostname for NFS server

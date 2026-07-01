@@ -17,48 +17,70 @@ _cred_yaml_bool() {
     fi
 }
 
-_inject_inventory_var() {
+_inject_credentials_with_python() {
     local inventory_file="$1"
-    local key="$2"
-    local value="$3"
-    python3 - "$key" "$value" "$inventory_file" <<'PY'
+    local payload="$2"
+    local payload_file
+    payload_file=$(mktemp)
+    printf '%s' "$payload" > "$payload_file"
+    python3 - "$inventory_file" "$payload_file" <<'PY'
+import json
 import re
 import sys
 
-key, value, path = sys.argv[1], sys.argv[2], sys.argv[3]
-pattern = re.compile(rf"^(\s*{re.escape(key)}:).*$")
+path = sys.argv[1]
+with open(sys.argv[2], encoding="utf-8") as handle:
+    data = json.load(handle)
+updates = data["updates"]
+
 with open(path, encoding="utf-8") as handle:
     lines = handle.readlines()
-with open(path, "w", encoding="utf-8") as handle:
-    for line in lines:
-        match = pattern.match(line)
-        if match:
-            handle.write(f'{match.group(1)} "{value}"\n')
-        else:
-            handle.write(line)
-PY
-}
 
-_inject_inventory_bool() {
-    local inventory_file="$1"
-    local key="$2"
-    local value="$3"
-    python3 - "$key" "$value" "$inventory_file" <<'PY'
-import re
-import sys
+insert_after = None
+for index, line in enumerate(lines):
+    if re.match(r"^\s*(registry_password|rhc_password|satellite_insecure|ocp4_workload_rhoso_deployment_rhc_activation_key):", line):
+        insert_after = index
 
-key, value, path = sys.argv[1], sys.argv[2], sys.argv[3]
-pattern = re.compile(rf"^(\s*{re.escape(key)}:).*$")
-with open(path, encoding="utf-8") as handle:
-    lines = handle.readlines()
-with open(path, "w", encoding="utf-8") as handle:
-    for line in lines:
+for key, value, quoted in updates:
+    pattern = re.compile(rf"^(\s*{re.escape(key)}:)\s*.*$")
+    found = False
+    for index, line in enumerate(lines):
         match = pattern.match(line)
-        if match:
-            handle.write(f"{match.group(1)} {value}\n")
+        if not match:
+            continue
+        prefix = match.group(1)
+        if quoted:
+            lines[index] = f'{prefix} "{value}"\n'
         else:
-            handle.write(line)
+            lines[index] = f"{prefix} {value}\n"
+        found = True
+        break
+
+    if found:
+        continue
+
+    if insert_after is None:
+        for index, line in enumerate(lines):
+            if re.match(r"^\s*vars:\s*$", line):
+                insert_after = index
+                break
+
+    if insert_after is None:
+        raise SystemExit(f"[ERROR] Could not find insertion point for inventory key: {key}")
+
+    indent_match = re.match(r"^(\s*)", lines[insert_after])
+    indent = indent_match.group(1) if indent_match else "    "
+    if quoted:
+        new_line = f'{indent}{key}: "{value}"\n'
+    else:
+        new_line = f"{indent}{key}: {value}\n"
+    lines.insert(insert_after + 1, new_line)
+    insert_after += 1
+
+with open(path, "w", encoding="utf-8") as handle:
+    handle.writelines(lines)
 PY
+    rm -f "$payload_file"
 }
 
 # Parse credentials.yml and export CRED_* variables.
@@ -150,24 +172,56 @@ inject_credentials_into_inventory() {
 
     echo "[INFO] Injecting credentials into inventory: $inventory_file"
 
-    _inject_inventory_var "$inventory_file" registry_username "$CRED_REGISTRY_USERNAME"
-    _inject_inventory_var "$inventory_file" registry_password "$CRED_REGISTRY_PASSWORD"
-
+    local payload
     if [[ "${CRED_SUBSCRIPTION_MODE:-}" == satellite ]]; then
-        _inject_inventory_var "$inventory_file" satellite_url "$CRED_SATELLITE_URL"
-        _inject_inventory_var "$inventory_file" satellite_org "$CRED_SATELLITE_ORG"
-        _inject_inventory_var "$inventory_file" ocp4_workload_rhoso_deployment_rhc_activation_key "$CRED_RHC_ACTIVATION_KEY"
-        _inject_inventory_bool "$inventory_file" satellite_insecure "$CRED_SATELLITE_INSECURE"
-        _inject_inventory_var "$inventory_file" rhc_username ""
-        _inject_inventory_var "$inventory_file" rhc_password ""
+        payload=$(CRED_REGISTRY_USERNAME="$CRED_REGISTRY_USERNAME" \
+            CRED_REGISTRY_PASSWORD="$CRED_REGISTRY_PASSWORD" \
+            CRED_SATELLITE_URL="$CRED_SATELLITE_URL" \
+            CRED_SATELLITE_ORG="$CRED_SATELLITE_ORG" \
+            CRED_RHC_ACTIVATION_KEY="$CRED_RHC_ACTIVATION_KEY" \
+            CRED_SATELLITE_INSECURE="$CRED_SATELLITE_INSECURE" \
+            python3 - <<'PY'
+import json
+import os
+
+updates = [
+    ("registry_username", os.environ["CRED_REGISTRY_USERNAME"], True),
+    ("registry_password", os.environ["CRED_REGISTRY_PASSWORD"], True),
+    ("satellite_url", os.environ["CRED_SATELLITE_URL"], True),
+    ("satellite_org", os.environ["CRED_SATELLITE_ORG"], True),
+    ("ocp4_workload_rhoso_deployment_rhc_activation_key", os.environ["CRED_RHC_ACTIVATION_KEY"], True),
+    ("satellite_insecure", os.environ.get("CRED_SATELLITE_INSECURE", "false"), False),
+    ("rhc_username", "", True),
+    ("rhc_password", "", True),
+]
+print(json.dumps({"updates": updates}))
+PY
+)
     else
-        _inject_inventory_var "$inventory_file" rhc_username "$CRED_RHC_USERNAME"
-        _inject_inventory_var "$inventory_file" rhc_password "$CRED_RHC_PASSWORD"
-        _inject_inventory_var "$inventory_file" satellite_url ""
-        _inject_inventory_var "$inventory_file" satellite_org ""
-        _inject_inventory_var "$inventory_file" ocp4_workload_rhoso_deployment_rhc_activation_key ""
-        _inject_inventory_bool "$inventory_file" satellite_insecure false
+        payload=$(CRED_REGISTRY_USERNAME="$CRED_REGISTRY_USERNAME" \
+            CRED_REGISTRY_PASSWORD="$CRED_REGISTRY_PASSWORD" \
+            CRED_RHC_USERNAME="$CRED_RHC_USERNAME" \
+            CRED_RHC_PASSWORD="$CRED_RHC_PASSWORD" \
+            python3 - <<'PY'
+import json
+import os
+
+updates = [
+    ("registry_username", os.environ["CRED_REGISTRY_USERNAME"], True),
+    ("registry_password", os.environ["CRED_REGISTRY_PASSWORD"], True),
+    ("rhc_username", os.environ["CRED_RHC_USERNAME"], True),
+    ("rhc_password", os.environ["CRED_RHC_PASSWORD"], True),
+    ("satellite_url", "", True),
+    ("satellite_org", "", True),
+    ("ocp4_workload_rhoso_deployment_rhc_activation_key", "", True),
+    ("satellite_insecure", "false", False),
+]
+print(json.dumps({"updates": updates}))
+PY
+)
     fi
+
+    _inject_credentials_with_python "$inventory_file" "$payload"
 
     echo "[INFO] Credentials injected into inventory"
 }

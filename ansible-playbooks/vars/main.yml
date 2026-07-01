@@ -107,8 +107,19 @@ redhat_registry_username: "{{ registry_username | default('') }}"
 redhat_registry_password: "{{ registry_password | default('') }}"
 
 # Subscription Manager Configuration (to be provided by user)
-subscription_manager_username: "{{ rhc_username | default('') }}"
-subscription_manager_password: "{{ rhc_password | default('') }}"
+# When Satellite mode is active, portal credentials are ignored.
+subscription_manager_username: >-
+  {{
+    ''
+    if (satellite_url | default('') | length > 0)
+    else (rhc_username | default(''))
+  }}
+subscription_manager_password: >-
+  {{
+    ''
+    if (satellite_url | default('') | length > 0)
+    else (rhc_password | default(''))
+  }}
 
 # Satellite registration (optional — when satellite_url is set, overrides portal login)
 # satellite_url and satellite_org are supplied via inventory when using demosat.
