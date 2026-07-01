@@ -62,11 +62,11 @@
     marker: "# {mark} ANSIBLE MANAGED SATELLITE VARS"
     insertbefore: "^         rhc_release:"
     block: |2
-             rhc_server:
-               hostname: {{ satellite_url }}
-               port: 443
-               insecure: {{ satellite_insecure | bool | lower }}
-             rhc_baseurl: https://{{ satellite_url }}/pulp/repos
-             rhc_insights:
-               state: absent
+         rhc_server:
+           hostname: {{ satellite_url }}
+           port: 443
+           insecure: {{ satellite_insecure | bool | lower }}
+         rhc_baseurl: https://{{ satellite_url }}/pulp/repos
+         rhc_insights:
+           state: absent
   when: satellite_url | default('') | length > 0
