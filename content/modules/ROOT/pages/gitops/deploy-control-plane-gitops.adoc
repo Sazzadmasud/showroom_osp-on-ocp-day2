@@ -22,7 +22,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 components:
-  - https://github.com/openstack-gitops/rhoso-gitops/base/initialize/gitops/components/annotations?ref=main
+  - https://github.com/openstack-k8s-operators/gitops/components/argocd/annotations?ref=v0.1.1
 
 resources:
   - https://github.com/rh-osp-demo/showroom_osp-on-ocp-day2/content/files/manifests/base/controlplane/?ref=main
@@ -90,7 +90,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - ../../../base/controlplane
+  - ../../base/controlplane
 
 patches:
   - target:
@@ -105,6 +105,9 @@ patches:
       - op: replace
         path: /spec/nodeSelector/kubernetes.io~1hostname
         value: "control-plane-cluster-{guid}-1"
+      - op: replace
+        path: /spec/desiredState/interfaces/3/ipv4/address/0/ip
+        value: "{rhoso_external_ip_worker_1}"
 
   - target:
       group: nmstate.io
@@ -118,6 +121,9 @@ patches:
       - op: replace
         path: /spec/nodeSelector/kubernetes.io~1hostname
         value: "control-plane-cluster-{guid}-2"
+      - op: replace
+        path: /spec/desiredState/interfaces/3/ipv4/address/0/ip
+        value: "{rhoso_external_ip_worker_2}"
 
   - target:
       group: nmstate.io
@@ -131,6 +137,9 @@ patches:
       - op: replace
         path: /spec/nodeSelector/kubernetes.io~1hostname
         value: "control-plane-cluster-{guid}-3"
+      - op: replace
+        path: /spec/desiredState/interfaces/3/ipv4/address/0/ip
+        value: "{rhoso_external_ip_worker_3}"
 
   - target:
       kind: NetConfig

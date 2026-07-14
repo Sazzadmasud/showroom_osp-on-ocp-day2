@@ -28,12 +28,11 @@ ssh -i /home/lab-user/.ssh/{guid}key.pem cloud-user@compute01
 [source,bash,role=execute,subs=attributes]
 ----
 sudo hostnamectl set-hostname edpm-compute-1.sandbox-{guid}-ocp4-cluster.svc.cluster.local
-sudo nmcli co delete 'System eth0'
-sudo nmcli con add con-name "static-eth0" ifname eth0 type ethernet ip4 10.0.2.2/24 ipv4.dns "172.30.0.10" ipv4.gateway "10.0.2.1"
-sudo nmcli con up "static-eth0"
-sudo nmcli co delete 'Wired connection 1'
 sudo nmcli con add con-name "static-eth1" ifname eth1 type ethernet ip4 172.22.0.100/24 ipv4.dns "172.22.0.89"
 sudo nmcli con up "static-eth1"
+sudo nmcli con add type ethernet ifname eth0 con-name eth0-dhcp ipv4.method auto ipv6.method ignore
+sudo nmcli con up eth0-dhcp
+sudo nmcli con mod eth0-dhcp connection.stable-id "user-set"
 ----
 
 And log off VM
@@ -54,23 +53,23 @@ ssh-keygen -f ./id -t ecdsa-sha2-nistp521 -N ''
 oc create secret generic nova-migration-ssh-key --from-file=ssh-privatekey=id --from-file=ssh-publickey=id.pub -n openstack -o yaml | oc apply -f-
 ----
 
-Create a secret for the subscription manager and a secret for the Red Hat registry:
+Create a secret for the subscription manager:
 
 [IMPORTANT]
 
-Add your username and password
+Add your username and password from the https://www.redhat.com/wapps/ugc/protected/password.html[Red Hat Customer Portal]
 
 [source,bash,role=execute]
 ----
 oc create secret generic subscription-manager \
---from-literal rhc_auth='{"login": {"username": "your_username", "password": "your_password"}}'
+--from-literal rhc_auth='{"login": {"username": "your_username", "password": "your_password"}}' -n openstack
 ----
 
-Create a secret for the subscription manager and a secret for the Red Hat registry:
+Create a secret for the Red Hat registry:
 
 [IMPORTANT]
 
-Add your username and password
+Add your service account username and password (token) generated as described in https://access.redhat.com/articles/RegistryAuthentication#creating-registry-service-accounts-6[Registry Service Accounts]
 
 [source,bash,role=execute]
 ----

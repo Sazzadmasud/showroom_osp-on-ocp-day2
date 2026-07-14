@@ -93,6 +93,9 @@ spec:
           {% set min_viable_mtu = mtu_list | max %}
           network_config:
           - type: interface
+            name: eth0
+            use_dhcp: true
+          - type: interface
             name: eth1
             mtu: {{ ctlplane_mtu }}
             dns_servers: {{ ctlplane_dns_nameservers }}
@@ -125,11 +128,9 @@ spec:
             name: br-ex
             mtu: 1500
             use_dhcp: false
-            addresses:
-              - ip_netmask: {{ external_ip }}/{{ external_cidr }}
             members:
               - type: interface
-                name: eth5
+                name: eth6
                 mtu: 1500
                 primary: true
   nodes: {}
