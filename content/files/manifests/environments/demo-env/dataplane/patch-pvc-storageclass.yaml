@@ -1,0 +1,4 @@
+# Rendered by RHOSO-enablement role: data-plane
+- op: add
+  path: /spec/storageClassName
+  value: ocs-external-storagecluster-ceph-rbd-immediate
